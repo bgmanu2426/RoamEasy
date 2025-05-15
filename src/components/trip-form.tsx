@@ -44,6 +44,8 @@ export function TripForm({ trip }: TripFormProps) {
   const { addTrip, updateTrip } = useTrips();
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
+  const [isStartDatePopoverOpen, setIsStartDatePopoverOpen] = useState(false);
+  const [isEndDatePopoverOpen, setIsEndDatePopoverOpen] = useState(false);
 
   const defaultValues = trip ? {
     ...trip,
@@ -145,7 +147,7 @@ export function TripForm({ trip }: TripFormProps) {
                 name="startDate"
                 control={control}
                 render={({ field }) => (
-                  <Popover>
+                  <Popover open={isStartDatePopoverOpen} onOpenChange={setIsStartDatePopoverOpen}>
                     <PopoverTrigger asChild>
                       <Button
                         variant={"outline"}
@@ -156,7 +158,14 @@ export function TripForm({ trip }: TripFormProps) {
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0">
-                      <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
+                      <Calendar 
+                        mode="single" 
+                        selected={field.value} 
+                        onSelect={(date) => {
+                          field.onChange(date);
+                          setIsStartDatePopoverOpen(false);
+                        }} 
+                        initialFocus />
                     </PopoverContent>
                   </Popover>
                 )}
@@ -169,7 +178,7 @@ export function TripForm({ trip }: TripFormProps) {
                 name="endDate"
                 control={control}
                 render={({ field }) => (
-                  <Popover>
+                  <Popover open={isEndDatePopoverOpen} onOpenChange={setIsEndDatePopoverOpen}>
                     <PopoverTrigger asChild>
                       <Button
                         variant={"outline"}
@@ -180,7 +189,15 @@ export function TripForm({ trip }: TripFormProps) {
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0">
-                      <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
+                      <Calendar 
+                        mode="single" 
+                        selected={field.value} 
+                        onSelect={(date) => {
+                          field.onChange(date);
+                          setIsEndDatePopoverOpen(false);
+                        }} 
+                        initialFocus 
+                      />
                     </PopoverContent>
                   </Popover>
                 )}
@@ -194,7 +211,7 @@ export function TripForm({ trip }: TripFormProps) {
             {activityFields.map((field, index) => (
               <div key={field.id} className="flex items-center gap-2 mt-1">
                 <Input {...register(`activities.${index}`)} placeholder={`Activity ${index + 1} (e.g., Museum visit, Hiking trail)`} />
-                {activityFields.length > 0 && (
+                {activityFields.length > 0 && ( // Show remove button if there is at least one activity field
                   <Button type="button" variant="ghost" size="icon" onClick={() => removeActivity(index)} aria-label="Remove activity">
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
@@ -204,6 +221,7 @@ export function TripForm({ trip }: TripFormProps) {
             <Button type="button" variant="outline" size="sm" onClick={() => appendActivity('')} className="mt-2">
               <PlusCircle className="mr-2 h-4 w-4" /> Add Activity
             </Button>
+             {errors.activities && <p className="text-sm text-destructive mt-1">{errors.activities.message}</p>}
           </div>
 
           <div>
@@ -234,4 +252,3 @@ export function TripForm({ trip }: TripFormProps) {
     </Card>
   );
 }
-
