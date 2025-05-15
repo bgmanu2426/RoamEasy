@@ -2,7 +2,7 @@
 "use client";
 
 import { useState } from 'react';
-import { useForm, type SubmitHandler } from 'react-hook-form';
+import { useForm, type SubmitHandler, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
@@ -50,18 +50,27 @@ export function SuggestionsForm() {
     setSuggestions([]);
     try {
       const result = await generateTripSuggestions(data);
-      setSuggestions(result.suggestions);
-      if (result.suggestions.length === 0) {
-        toast({
-            title: "No specific suggestions found",
-            description: "Try broadening your criteria or trying different keywords.",
-            variant: "default",
-        });
+      if (result && Array.isArray(result.suggestions)) {
+        setSuggestions(result.suggestions);
+        if (result.suggestions.length === 0) {
+          toast({
+              title: "No specific suggestions found",
+              description: "Try broadening your criteria or trying different keywords.",
+          });
+        } else {
+          toast({
+              title: "Suggestions Generated!",
+              description: "Here are some ideas for your next trip.",
+          });
+        }
       } else {
+        console.error("Unexpected response from AI:", result);
+        setError("The suggestion service returned an unexpected data format. Please try again.");
+        setSuggestions([]); 
         toast({
-            title: "Suggestions Generated!",
-            description: "Here are some ideas for your next trip.",
-            variant: "default",
+          title: "Suggestion Error",
+          description: "Received an improperly formatted response from the AI. Please try again.",
+          variant: "destructive",
         });
       }
     } catch (e) {
