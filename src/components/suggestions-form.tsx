@@ -5,18 +5,19 @@ import { useState } from 'react';
 import { useForm, type SubmitHandler, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Wand2, Loader2, AlertTriangle, Sparkles, Info, ThumbsUp } from 'lucide-react';
+import { Wand2, Loader2, AlertTriangle, Sparkles, Info, ThumbsUp, PlusCircle } from 'lucide-react';
 import { generateTripSuggestions } from '@/ai/flows/generate-trip-suggestions';
 import type { SuggestionFilters } from '@/types';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from '@/hooks/use-toast';
-import Image from 'next/image';
 
 const suggestionSchema = z.object({
   interests: z.string().min(3, "Please describe your interests."),
@@ -33,6 +34,7 @@ export function SuggestionsForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
+  const router = useRouter();
 
   const { register, handleSubmit, control, formState: { errors } } = useForm<SuggestionFilters>({
     resolver: zodResolver(suggestionSchema),
@@ -65,7 +67,8 @@ export function SuggestionsForm() {
         }
       } else {
         console.error("Unexpected response from AI:", result);
-        setError("The suggestion service returned an unexpected data format. Please try again.");
+        const errorMessage = "The suggestion service returned an unexpected data format. Please try again.";
+        setError(errorMessage);
         setSuggestions([]); 
         toast({
           title: "Suggestion Error",
@@ -84,6 +87,15 @@ export function SuggestionsForm() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleUseSuggestion = (suggestionText: string) => {
+    toast({
+      title: "Starting Your Trip Plan!",
+      description: "Taking you to the trip creation page with this idea.",
+    });
+    // Use the suggestion for both name and the first destination for simplicity
+    router.push(`/trips/new?name=${encodeURIComponent(suggestionText)}&destination=${encodeURIComponent(suggestionText)}`);
   };
 
   return (
@@ -202,8 +214,8 @@ export function SuggestionsForm() {
                   <p className="text-sm">{suggestion}</p>
                 </CardContent>
                 <CardFooter className="p-4 border-t">
-                    <Button variant="outline" size="sm" className="w-full" onClick={() => toast({ title: "Great Choice!", description: "You can now create a new trip based on this idea."})}>
-                        <ThumbsUp className="mr-2 h-4 w-4"/> I like this!
+                    <Button variant="outline" size="sm" className="w-full" onClick={() => handleUseSuggestion(suggestion)}>
+                        <PlusCircle className="mr-2 h-4 w-4"/> Use this for a new trip
                     </Button>
                 </CardFooter>
               </Card>

@@ -14,11 +14,11 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { CalendarIcon, Save, PlusCircle, Trash2, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatDate } from '@/lib/date-utils';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useTrips } from '@/components/providers/trip-provider';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 const tripFormSchema = z.object({
   name: z.string().min(3, "Trip name must be at least 3 characters."),
@@ -28,46 +28,74 @@ const tripFormSchema = z.object({
   notes: z.string().optional(),
   activities: z.array(z.string().min(1, "Activity cannot be empty.")).optional(),
   imageUrl: z.string().url("Must be a valid URL.").optional().or(z.literal('')),
-  budget: z.string().optional(), // Added from Trip type
-  travelStyle: z.string().optional(), // Added from Trip type
-  interests: z.string().optional(), // Added from Trip type
+  budget: z.string().optional(), 
+  travelStyle: z.string().optional(), 
+  interests: z.string().optional(), 
 });
 
 type TripFormData = z.infer<typeof tripFormSchema>;
 
 interface TripFormProps {
-  trip?: Trip; // For editing existing trip
+  trip?: Trip; 
 }
 
 export function TripForm({ trip }: TripFormProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { addTrip, updateTrip } = useTrips();
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
   const [isStartDatePopoverOpen, setIsStartDatePopoverOpen] = useState(false);
   const [isEndDatePopoverOpen, setIsEndDatePopoverOpen] = useState(false);
 
-  const defaultValues = trip ? {
-    ...trip,
-    startDate: trip.startDate ? new Date(trip.startDate) : undefined,
-    endDate: trip.endDate ? new Date(trip.endDate) : undefined,
-    destinations: trip.destinations || [''],
-    activities: trip.activities || [''],
-  } : {
-    name: '',
-    destinations: [''],
-    activities: [''],
-    notes: '',
-    imageUrl: '',
-    budget: '',
-    travelStyle: '',
-    interests: '',
+  const getInitialValues = () => {
+    if (trip) {
+      return {
+        ...trip,
+        startDate: trip.startDate ? new Date(trip.startDate) : undefined,
+        endDate: trip.endDate ? new Date(trip.endDate) : undefined,
+        destinations: trip.destinations && trip.destinations.length > 0 ? trip.destinations : [''],
+        activities: trip.activities && trip.activities.length > 0 ? trip.activities : [''],
+      };
+    }
+
+    // Pre-fill from URL parameters if creating a new trip
+    const suggestedName = searchParams.get('name');
+    const suggestedDestination = searchParams.get('destination');
+    
+    return {
+      name: suggestedName || '',
+      destinations: suggestedDestination ? [suggestedDestination] : [''],
+      activities: [''],
+      notes: '',
+      imageUrl: '',
+      budget: '',
+      travelStyle: '',
+      interests: '',
+    };
   };
 
-  const { register, handleSubmit, control, formState: { errors }, watch } = useForm<TripFormData>({
+  const { register, handleSubmit, control, formState: { errors }, watch, reset } = useForm<TripFormData>({
     resolver: zodResolver(tripFormSchema),
-    defaultValues,
+    defaultValues: getInitialValues(),
   });
+  
+  // Effect to update form if query params change (e.g., user navigates again with new suggestion)
+  useEffect(() => {
+    if (!trip) { // Only for new trips
+      const suggestedName = searchParams.get('name');
+      const suggestedDestination = searchParams.get('destination');
+      const currentDefaults = getInitialValues(); // to preserve other defaults
+      
+      const newDefaults = {
+        ...currentDefaults,
+        name: suggestedName || currentDefaults.name,
+        destinations: suggestedDestination ? [suggestedDestination] : currentDefaults.destinations,
+      };
+      reset(newDefaults); // Reset form with new default values
+    }
+  }, [searchParams, trip, reset]);
+
 
   const { fields: destinationFields, append: appendDestination, remove: removeDestination } = useFieldArray({
     control,
@@ -86,7 +114,9 @@ export function TripForm({ trip }: TripFormProps) {
         ...data,
         startDate: data.startDate?.toISOString(),
         endDate: data.endDate?.toISOString(),
-        activities: data.activities?.filter(act => act.trim() !== ''), // Ensure activities are not empty strings
+        // Filter out empty strings from activities and destinations before saving
+        activities: data.activities?.filter(act => act.trim() !== '') || [],
+        destinations: data.destinations.filter(dest => dest.trim() !== ''),
       };
 
       if (trip) {
@@ -211,7 +241,7 @@ export function TripForm({ trip }: TripFormProps) {
             {activityFields.map((field, index) => (
               <div key={field.id} className="flex items-center gap-2 mt-1">
                 <Input {...register(`activities.${index}`)} placeholder={`Activity ${index + 1} (e.g., Museum visit, Hiking trail)`} />
-                {activityFields.length > 0 && ( // Show remove button if there is at least one activity field
+                {activityFields.length > 0 && ( 
                   <Button type="button" variant="ghost" size="icon" onClick={() => removeActivity(index)} aria-label="Remove activity">
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
@@ -221,7 +251,7 @@ export function TripForm({ trip }: TripFormProps) {
             <Button type="button" variant="outline" size="sm" onClick={() => appendActivity('')} className="mt-2">
               <PlusCircle className="mr-2 h-4 w-4" /> Add Activity
             </Button>
-             {errors.activities && <p className="text-sm text-destructive mt-1">{errors.activities.message}</p>}
+             {errors.activities && <p className="text-sm text-destructive mt-1">{errors.activities.message || (errors.activities as any)?.root?.message}</p>}
           </div>
 
           <div>
@@ -232,12 +262,17 @@ export function TripForm({ trip }: TripFormProps) {
           
           <div>
             <Label htmlFor="imageUrl">Image URL (Optional)</Label>
-            <Input id="imageUrl" {...register("imageUrl")} className="mt-1" placeholder="https://example.com/image.jpg"/>
+            <Input id="imageUrl" {...register("imageUrl")} className="mt-1" placeholder="https://placehold.co/600x400.png"/>
             {errors.imageUrl && <p className="text-sm text-destructive mt-1">{errors.imageUrl.message}</p>}
             {watchedImageUrl && (
-              <div className="mt-2">
-                <img src={watchedImageUrl} alt="Trip preview" className="rounded-md max-h-40 object-cover" />
+              <div className="mt-2 rounded-md overflow-hidden">
+                <img src={watchedImageUrl} alt="Trip preview" className="max-h-48 w-full object-cover" />
               </div>
+            )}
+             {!watchedImageUrl && (
+                <div className="mt-2 rounded-md overflow-hidden bg-muted flex items-center justify-center h-48">
+                    <p className="text-muted-foreground text-sm">No image URL provided. A default will be used.</p>
+                </div>
             )}
           </div>
 
